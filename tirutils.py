@@ -65,13 +65,13 @@ def packageTESSPairs(tessData):
     except:
         return "error"
 
-def wormsPairEverything(wormsData):
-    import re
-    wormsPairingRules = {"{": "", "}": "", "'": '"', ": ": "=>", '=>None,': '=>"None",'}
-    wormsPairs = wormsData
-    for i, j in wormsPairingRules.items():
-        wormsPairs = wormsPairs.replace(i, j)
-    wormsPairs = re.sub(r'=>([0-9]+),', r'=>"\1",', wormsPairs)
+def packageWoRMSPairs(matchMethod,wormsData):
+    import datetime
+    dt = datetime.datetime.utcnow().isoformat()
+    wormsPairs = '"cacheDate"=>"'+dt+'"'
+    wormsPairs = wormsPairs+',"itisMatchMethod"=>"'+matchMethod+'"'
+    wormsPairs = wormsPairs+',"scientificname"=>"'+wormsData['scientificname']+'"'
+
     return wormsPairs
     
 
