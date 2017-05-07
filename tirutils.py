@@ -22,6 +22,8 @@ def packageITISPairs(matchMethod,itisJSON):
     itisPairs = itisPairs+',"updateDate"=>"'+itisJSON['response']['docs'][0]['updateDate']+'"'
     itisPairs = itisPairs+',"discoveredTSN"=>"'+itisJSON['response']['docs'][0]['tsn']+'"'
     itisPairs = itisPairs+',"rank"=>"'+itisJSON['response']['docs'][0]['rank']+'"'
+    itisPairs = itisPairs+',"nameWInd"=>"'+itisJSON['response']['docs'][0]['nameWInd']+'"'
+    itisPairs = itisPairs+',"nameWOInd"=>"'+itisJSON['response']['docs'][0]['nameWOInd']+'"'
 
     if 'acceptedTSN' in itisJSON['response']['docs'][0]:
         itisPairs = itisPairs+',"acceptedTSN"=>"'+''.join(str(e) for e in itisJSON['response']['docs'][0]['acceptedTSN'])+'"'
