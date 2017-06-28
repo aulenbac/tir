@@ -11,7 +11,7 @@
 # 
 # However, that is only a single additional API interaction per record, and it allows us to simply kick off this process whenever and have it run until there's nothing left to do. It seems like that might be conducive to processing on the Kafka/microservices architecture.
 
-# In[14]:
+# In[2]:
 
 import requests,re
 from IPython.display import display
@@ -21,19 +21,27 @@ from bis import tir
 from bis2 import gc2
 
 
-# In[19]:
+# In[ ]:
 
-numberWithoutWoRMS = 1
-totalRecordsToProcess = 500
-totalRecordsProcessed = 0
+# Set up the actions/targets for this particular instance
+thisRun = {}
+thisRun["instance"] = "DataDistillery"
+thisRun["db"] = "BCB"
+thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
+thisRun["commitToDB"] = True
+thisRun["totalRecordsToProcess"] = 500
+thisRun["totalRecordsProcessed"] = 0
+thisRun["wormsService"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"
 
-while numberWithoutWoRMS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
-    q_recordToSearch = "SELECT id,         registration->'scientificname' AS scientificname,         itis->'nameWInd' AS itisNameWInd         FROM tir.tir         WHERE worms IS NULL         AND itis IS NOT NULL         LIMIT 1"
+numberWithoutTIRData = 1
+
+while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] <= thisRun["totalRecordsToProcess"]:
+    q_recordToSearch = "SELECT id,         registration->'source' AS source,         registration->'followTaxonomy' AS followtaxonomy,         registration->'taxonomicLookupProperty' AS taxonomiclookupproperty,         registration->'scientificname' AS scientificname,         itis->'nameWInd' AS nameWInd,         itis->'nameWOInd' AS nameWOInd         FROM tir.tir         WHERE worms IS NULL         LIMIT 1"
     recordToSearch  = requests.get(gc2.sqlAPI("DataDistillery","BCB")+"&q="+q_recordToSearch).json()
     
-    numberWithoutWoRMS = len(recordToSearch["features"])
+    numberWithoutTIRData = len(recordToSearch["features"])
 
-    if numberWithoutWoRMS == 1:
+    if numberWithoutTIRData == 1:
         tirRecord = recordToSearch["features"][0]
 
         # Set up a local data structure for storage and processing
@@ -41,39 +49,45 @@ while numberWithoutWoRMS == 1 and totalRecordsProcessed <= totalRecordsToProcess
         
         # Set data from query results
         thisRecord["id"] = tirRecord["properties"]["id"]
-        thisRecord["scientificname_submitted"] = tirRecord["properties"]["scientificname"]
-        thisRecord["scientificname_search"] = bis.cleanScientificName(thisRecord["scientificname_submitted"])
-        thisRecord["itisNameWInd"] = tirRecord["properties"]["itisnamewind"]
+        thisRecord["followTaxonomy"] = tirRecord["properties"]["followtaxonomy"]
 
+        thisRecord["tryNames"] = []
+        thisRecord["tryNames"].append(bis.cleanScientificName(tirRecord["properties"]["scientificname"]))
+        if tirRecord["properties"]["namewind"] is not None and tirRecord["properties"]["namewind"] not in thisRecord["tryNames"]:
+            thisRecord["tryNames"].append(tirRecord["properties"]["namewind"])
+        if tirRecord["properties"]["namewoind"] is not None and tirRecord["properties"]["namewoind"] not in thisRecord["tryNames"]:
+            thisRecord["tryNames"].append(tirRecord["properties"]["namewoind"])
+        
         # Set defaults for thisRecord
         thisRecord["matchMethod"] = "Not Matched"
-        thisRecord["matchString"] = thisRecord["scientificname_search"]
         wormsData = 0
 
-        # Handle the cases where there is enough interesting stuff in the scientific name string that it comes back blank from the cleaners
-        if len(thisRecord["scientificname_search"]) != 0:
-            try:
-                wormsSearchResults = requests.get("http://www.marinespecies.org/rest/AphiaRecordsByName/"+thisRecord["scientificname_search"]+"?like=false&marine_only=false&offset=1").json()
-                thisRecord["matchMethod"] = "Exact Match"
-                wormsData = wormsSearchResults[0]
-            except:
-                try:
-                    wormsSearchResults = requests.get("http://www.marinespecies.org/rest/AphiaRecordsByName/"+thisRecord["scientificname_search"]+"?like=true&marine_only=false&offset=1").json()
-                    thisRecord["matchMethod"] = "Fuzzy Match"
-                    wormsData = wormsSearchResults[0]
-                except:
-                    if thisRecord["itisNameWInd"] != None and thisRecord["itisNameWInd"] != thisRecord["scientificname_search"]:
-                        try:
-                            wormsSearchResults = requests.get("http://www.marinespecies.org/rest/AphiaRecordsByName/"+thisRecord["itisNameWInd"]+"?like=false&marine_only=false&offset=1").json()
-                            thisRecord["matchMethod"] = "ITIS Name Match"
-                            wormsData = wormsSearchResults[0]
-                        except:
-                            pass
-
+        for name in thisRecord["tryNames"]:
+            # Handle the cases where there is enough interesting stuff in the scientific name string that it comes back blank from the cleaners
+            if len(name) != 0:
+                thisRecord["matchString"] = name
+                thisRecord["baseQueryURL"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"+name
+                wormsSearchResults = requests.get(thisRecord["baseQueryURL"]+"?like=false&marine_only=false&offset=1")
+                if wormsSearchResults.status_code == 204:
+                    wormsSearchResults = requests.get(thisRecord["baseQueryURL"]+"?like=true&marine_only=false&offset=1")
+                    if wormsSearchResults.status_code != 204:
+                        wormsData = wormsSearchResults.json()[0]
+                        thisRecord["matchMethod"] = "Fuzzy Match"
+                else:
+                    wormsData = wormsSearchResults.json()[0]
+                    thisRecord["matchMethod"] = "Exact Match"
+        
+        if not type(wormsData) == int and wormsData["status"] != "accepted" and thisRecord["followTaxonomy"] == "true":
+            wormsSearchResults = requests.get("http://www.marinespecies.org/rest/AphiaRecordByAphiaID/"+str(wormsData["valid_AphiaID"]))
+            if wormsSearchResults.status_code != 204:
+                wormsData = wormsSearchResults.json()
+                thisRecord["matchMethod"] = "Followed Accepted AphiaID"
+        
         thisRecord["wormsPairs"] = worms.packageWoRMSPairs(thisRecord["matchMethod"],wormsData)
         display (thisRecord)
-        print (tir.cacheToTIR(gc2.sqlAPI("DataDistillery","BCB"),thisRecord["id"],"worms",thisRecord["wormsPairs"]))
-        totalRecordsProcessed = totalRecordsProcessed + 1
+        if thisRun["commitToDB"]:
+            print (tir.cacheToTIR(gc2.sqlAPI("DataDistillery","BCB"),thisRecord["id"],"worms",thisRecord["wormsPairs"]))
+        thisRun["totalRecordsProcessed"] = thisRun["totalRecordsProcessed"] + 1
 
 
 # In[ ]:

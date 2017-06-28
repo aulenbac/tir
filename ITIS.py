@@ -32,7 +32,7 @@
 # 
 # We also need to figure out what to do when we want to update the information over time. With ITIS, once we have a matched TSN, we can then use that TSN to grab updates as they occur, including changes in taxonomy. But we need to figure out if we should change the structure of the TIR cache to keep all the old versions of what we found over time so that it can always be referred back to.
 
-# In[23]:
+# In[2]:
 
 import requests,re
 from IPython.display import display
@@ -42,7 +42,7 @@ from bis import tir
 from bis2 import gc2
 
 
-# In[24]:
+# In[1]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -51,22 +51,19 @@ thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
 thisRun["fuzzyLevel"] = "~0.5"
+thisRun["totalRecordsToProcess"] = 500
+thisRun["totalRecordsProcessed"] = 0
 
+numberWithoutTIRData = 1
 
-# In[25]:
-
-numberWithoutITIS = 1
-totalRecordsToProcess = 50000
-totalRecordsProcessed = 0
-
-while numberWithoutITIS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
+while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] <= thisRun["totalRecordsToProcess"]:
 
     q_recordToSearch = "SELECT id,         registration->'source' AS source,         registration->'followTaxonomy' AS followtaxonomy,         registration->'taxonomicLookupProperty' AS taxonomiclookupproperty,         registration->'scientificname' AS scientificname,         registration->'tsn' AS tsn         FROM tir.tir         WHERE itis IS NULL         LIMIT 1"
     recordToSearch  = requests.get(thisRun["baseURL"]+"&q="+q_recordToSearch).json()
     
-    numberWithoutITIS = len(recordToSearch["features"])
+    numberWithoutTIRData = len(recordToSearch["features"])
     
-    if numberWithoutITIS == 1:
+    if numberWithoutTIRData == 1:
         tirRecord = recordToSearch["features"][0]
         
         # Set up a local data structure for storage and processing
@@ -84,7 +81,7 @@ while numberWithoutITIS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
         # Set defaults for thisRecord
         thisRecord["matchMethod"] = "Not Matched"
         thisRecord["matchString"] = thisRecord["scientificname_search"]
-        thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],0)
+        thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],thisRecord["matchString"],0)
 
         if thisRecord["taxonomicLookupProperty"] == "scientificname" and len(thisRecord["scientificname_search"]) != 0:
 
@@ -98,7 +95,7 @@ while numberWithoutITIS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
 
                 # If we got only a single match on an exact match search, set the method and proceed
                 if thisRecord["numResults"] == 1:
-                    thisRecord["matchMethod"] = "Exact Match:"
+                    thisRecord["matchMethod"] = "Exact Match"
 
                 # If we found nothing on an exact match search, try a fuzzy match
                 elif thisRecord["numResults"] == 0:
@@ -109,7 +106,7 @@ while numberWithoutITIS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
 
                 # If there are results from exact or fuzzy match search, package the ITIS properties we want
                 if thisRecord["numResults"] == 1:
-                    thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],itisSearchResults["response"]["docs"][0])
+                    thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],thisRecord["matchString"],itisSearchResults["response"]["docs"][0])
 
                 # Handle cases where discovered TSN usage is invalid by following accepted TSN
                 if (thisRecord["itisPairs"].find('"usage"=>"valid"') == -1 or thisRecord["itisPairs"].find('"usage"=>"accepted"') == -1) and thisRecord["itisPairs"].find('"acceptedTSN"') > 0 and thisRecord["followTaxonomy"] == "True":
@@ -121,7 +118,7 @@ while numberWithoutITIS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
                     thisRecord["numResults"] = len(itisSearchResults["response"]["docs"])
                     if thisRecord["numResults"] == 1:
                         thisRecord["matchMethod"] = "Followed Accepted TSN"
-                        thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],itisSearchResults["response"]["docs"][0])
+                        thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],thisRecord["matchString"],itisSearchResults["response"]["docs"][0])
                         thisRecord["itisPairs"] = thisRecord["itisPairs"]+',"discoveredTSN"=>"'+thisRecord["discoveredTSN"]+'"'
 
             except Exception as e:
@@ -135,7 +132,7 @@ while numberWithoutITIS == 1 and totalRecordsProcessed <= totalRecordsToProcess:
         display (thisRecord)
         if thisRun["commitToDB"]:
             print (tir.cacheToTIR(thisRun["baseURL"],thisRecord["id"],"itis",thisRecord["itisPairs"]))
-        totalRecordsProcessed = totalRecordsProcessed + 1
+        thisRun["totalRecordsProcessed"] = thisRun["totalRecordsProcessed"] + 1
 
         
 
