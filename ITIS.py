@@ -32,9 +32,9 @@
 # 
 # We also need to figure out what to do when we want to update the information over time. With ITIS, once we have a matched TSN, we can then use that TSN to grab updates as they occur, including changes in taxonomy. But we need to figure out if we should change the structure of the TIR cache to keep all the old versions of what we found over time so that it can always be referred back to.
 
-# In[2]:
+# In[7]:
 
-import requests,re
+import requests,json
 from IPython.display import display
 from bis import bis
 from bis import itis
@@ -42,7 +42,7 @@ from bis import tir
 from bis2 import gc2
 
 
-# In[1]:
+# In[17]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -51,14 +51,14 @@ thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
 thisRun["fuzzyLevel"] = "~0.5"
-thisRun["totalRecordsToProcess"] = 500
+thisRun["totalRecordsToProcess"] = 5000
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
 
-while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] <= thisRun["totalRecordsToProcess"]:
+while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["totalRecordsToProcess"]:
 
-    q_recordToSearch = "SELECT id,         registration->'source' AS source,         registration->'followTaxonomy' AS followtaxonomy,         registration->'taxonomicLookupProperty' AS taxonomiclookupproperty,         registration->'scientificname' AS scientificname,         registration->'tsn' AS tsn         FROM tir.tir         WHERE itis IS NULL         LIMIT 1"
+    q_recordToSearch = "SELECT id,         registration->>'source' AS source,         registration->>'followTaxonomy' AS followtaxonomy,         registration->>'taxonomicLookupProperty' AS taxonomiclookupproperty,         registration->>'scientificname' AS scientificname,         registration->>'tsn' AS tsn         FROM tir.tir         WHERE itis IS NULL         LIMIT 1"
     recordToSearch  = requests.get(thisRun["baseURL"]+"&q="+q_recordToSearch).json()
     
     numberWithoutTIRData = len(recordToSearch["features"])
@@ -81,57 +81,59 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] <= thisRun[
         # Set defaults for thisRecord
         thisRecord["matchMethod"] = "Not Matched"
         thisRecord["matchString"] = thisRecord["scientificname_search"]
-        thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],thisRecord["matchString"],0)
+        thisRecord["itisData"] = itis.packageITISJSON(thisRecord["matchMethod"],thisRecord["matchString"],0)
+        thisRecord["numResults"] = 0
+        itisDoc = {}
 
         if thisRecord["taxonomicLookupProperty"] == "scientificname" and len(thisRecord["scientificname_search"]) != 0:
 
-            # The ITIS Solr service does not fail in an elegant way, and so we need to try this whole section and except it out if the query fails
-            try:
-                thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["scientificname_search"])
+            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["scientificname_search"],False)
 
-                # Try an exact match search
+            # Try an exact match search
+            try:
                 itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
                 thisRecord["numResults"] = len(itisSearchResults["response"]["docs"])
-
-                # If we got only a single match on an exact match search, set the method and proceed
-                if thisRecord["numResults"] == 1:
-                    thisRecord["matchMethod"] = "Exact Match"
-
-                # If we found nothing on an exact match search, try a fuzzy match
-                elif thisRecord["numResults"] == 0:
-                    itisSearchResults = requests.get(thisRecord["itisSearchURL"]+thisRun["fuzzyLevel"]).json()
-                    thisRecord["numResults"] = len(itisSearchResults["response"]["docs"])
-                    if thisRecord["numResults"] == 1:
-                        thisRecord["matchMethod"] = "Fuzzy Match"
-
-                # If there are results from exact or fuzzy match search, package the ITIS properties we want
-                if thisRecord["numResults"] == 1:
-                    thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],thisRecord["matchString"],itisSearchResults["response"]["docs"][0])
-
-                # Handle cases where discovered TSN usage is invalid by following accepted TSN
-                if (thisRecord["itisPairs"].find('"usage"=>"valid"') == -1 or thisRecord["itisPairs"].find('"usage"=>"accepted"') == -1) and thisRecord["itisPairs"].find('"acceptedTSN"') > 0 and thisRecord["followTaxonomy"] == "True":
-                    thisRecord["acceptedTSN"] = re.search('\"acceptedTSN"\=\>\"(.+?)\"', thisRecord["itisPairs"]).group(1)
-                    thisRecord["discoveredTSN"] = re.search('\"tsn"\=\>\"(.+?)\"', thisRecord["itisPairs"]).group(1)
-
-                    thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["acceptedTSN"])
-                    itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
-                    thisRecord["numResults"] = len(itisSearchResults["response"]["docs"])
-                    if thisRecord["numResults"] == 1:
-                        thisRecord["matchMethod"] = "Followed Accepted TSN"
-                        thisRecord["itisPairs"] = itis.packageITISPairs(thisRecord["matchMethod"],thisRecord["matchString"],itisSearchResults["response"]["docs"][0])
-                        thisRecord["itisPairs"] = thisRecord["itisPairs"]+',"discoveredTSN"=>"'+thisRecord["discoveredTSN"]+'"'
-
             except Exception as e:
                 print (e)
                 pass
 
-        elif thisRecord["taxonomicLookupProperty"] == "tsn" and thisRecord["tsn"] is not None:
 
-            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["tsn"])
+            # If we got only a single record on an exact match search, set the method and proceed
+            if thisRecord["numResults"] == 1:
+                thisRecord["matchMethod"] = "Exact Match"
+                itisDoc = itisSearchResults["response"]["docs"][0]
+
+            # If we found nothing on an exact match search, try a fuzzy match
+            elif thisRecord["numResults"] == 0:
+                try:
+                    itisSearchResults = requests.get(thisRecord["itisSearchURL"]+thisRun["fuzzyLevel"]).json()
+                    thisRecord["numResults"] = len(itisSearchResults["response"]["docs"])
+                except Exception as e:
+                    print (e)
+                    pass
+                if thisRecord["numResults"] == 1:
+                    thisRecord["matchMethod"] = "Fuzzy Match"
+                    itisDoc = itisSearchResults["response"]["docs"][0]
+
+            # If we got a result but the usage is not accepted/invalid and we should follow taxonomy for this record, then retrieve the record for the accepted TSN
+            if len(itisDoc) > 0 and itisDoc["usage"] in ["not accepted","invalid"] and thisRecord["followTaxonomy"]:
+                thisRecord["itisSearchURL"] = itis.getITISSearchURL(itisDoc["acceptedTSN"][0],False)
+                try:
+                    itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
+                except Exception as e:
+                    print (e)
+                    pass
+                if thisRecord["numResults"] == 1:
+                    thisRecord["matchMethod"] = "Followed Accepted TSN"
+                    itisDoc = itisSearchResults["response"]["docs"][0]
+
+            # If we got an ITIS Doc returned, package the results
+            if len(itisDoc) > 0:
+                thisRecord["itisData"] = itis.packageITISJSON(thisRecord["matchMethod"],thisRecord["matchString"],itisDoc)
 
         display (thisRecord)
         if thisRun["commitToDB"]:
-            print (tir.cacheToTIR(thisRun["baseURL"],thisRecord["id"],"itis",thisRecord["itisPairs"]))
+            print (tir.cacheToTIR(thisRun["baseURL"],thisRecord["id"],"itis",json.dumps(thisRecord["itisData"])))
         thisRun["totalRecordsProcessed"] = thisRun["totalRecordsProcessed"] + 1
 
         
