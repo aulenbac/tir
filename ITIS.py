@@ -1,36 +1,12 @@
 
 # coding: utf-8
 
-# This notebook works with the Taxonomic Information Registry. It picks up scientific names (currently only looking for those submitted by the SGCN process), queries the ITIS Solr service for matches, and caches a few specific properties in a key/value store. A lot of what was originally all in context here as functions has been moved out to a set of modules in a package. The following notes still make sense as to what this process is doing, but they reference what are now those modularized functions.
+# Since I've revamped all the TIR processors (yet again), I've eliminated the old notes here that are no longer fully relevant. This script now does what most of the TIR processors do, act continuously (or within a set limit) on every registered item in the TIR that does not yet have ITIS information cached.
 # 
-# ### Clean the scientific name string for use in searches (bis.bis.cleanScientificName(name string))
-# Note: I moved this function into the bis.bis module.
+# I also significantly simplified this whole process by switching from the hstore to json data structure for the different "buckets" of cached information in the TIR. This allowed me to simply retrieve and process a matching document from the ITIS Solr service in its JSON format, pop out the properties that we don't want/need (or that were causing undue issues with the GC2 API and PostgreSQL), and repackage some of the information (hierarchy with ranks and vernacular names) into a more usable structure that takes advantage of JSON over a text string in need of constant parsing.
 # 
-# This is one of the more tricky areas of the process. People encode a lot of different signals into scientific names. If we clean too much out of the name string, we run the risk of not finding the taxon that they intended to provide. If we clean up too little, we won't find anything with the search. So far, for the SGCN case, we've decided to do the following in this code block for the purposes of finding the taxon in ITIS:
-# 
-# * Ignore population designations
-# * Ignore strings after an "spp." designation
-# * Set case for what appear to be species name strings to uppercase genus but lowercase everything else
-# * Ignore text in between parentheses and brackets; these are often synonyms or alternate names that should be picked up from the ITIS record if we find a match
-# 
-# One thing that I deliberately did not do here was change cases where the name string includes signals like "sp." or "sp. 4". Those are seeming to indicate that the genus is known but species is not yet determined. Rather than strip this text and run the query, potentially resulting in a genus match, I opted to leave those strings in place, likely resulting in no match with ITIS. We may end up making a different design decision for the SGCN case and allow for matching to genus.
-# 
-# ### Package up the specific attributes we want to cache from ITIS (bis.itis.packageITISPairs(ITIS Solr JSON Doc))
-# Note: I moved this and other ITIS functions into the bis.itis module.
-# 
-# This function takes the data coming from the ITIS service as JSON and pairs up the attributes and values we want to cache and use. The date/time stamp here for when the information is cached is vital metadata for determining usability. As soon as the information comes out of ITIS, it is potentially stale. The information we collect and use from ITIS through this process includes the following:
-# * Discovered and accepted TSNs for the taxon
-# * Taxonomic rank of the discovered taxon
-# * Names with and without indicators for the discovered taxon
-# * Taxonomic hierarchy with ranks (in the ITIS Solr service, this is always the accepted taxonomic hierarchy)
-# * Vernacular names for the discovered taxon
-# 
-# ### Run the process for all supplied names
-# The main process run below should eventually be the substance of a microservice on name matching. I set this up to create a local data structure (dictionary) for each record. The main point here is to set up the search, execute the search and package ITIS results, and then submit those for the record back to the Taxonomic Information Registry.
-# 
-# One of the major things we still need to work out here is what to do with updates over time. This script puts some record into the ITIS pairs whether we find a match or not. The query that gets names to run from the registration property looks for cases where the ITIS information is null (mostly because I needed to pick up where I left off when I found a few remaining issues that failed the script). We can then use cases where the "matchMethod" is "NotMatched" to go back and see if we can find name matches. This is particularly going to be the case where we find more than one match on a fuzzy search, which I still haven't dealt with.
-# 
-# We also need to figure out what to do when we want to update the information over time. With ITIS, once we have a matched TSN, we can then use that TSN to grab updates as they occur, including changes in taxonomy. But we need to figure out if we should change the structure of the TIR cache to keep all the old versions of what we found over time so that it can always be referred back to.
+# ### To Do
+# Next, I need to add in a different route for this code that retrieves information from ITIS when the registration info in the TIR contains an already identified ITIS TSN. This will be for GAP species and other cases and will include not following the taxonomic information to a valid TSN, but simply recording when that is the case.
 
 # In[7]:
 

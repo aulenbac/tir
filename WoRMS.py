@@ -1,15 +1,11 @@
 
 # coding: utf-8
 
-# I'm experimenting with a new, smaller increment method here of working through the TIR registrations on WoRMS matching. In this process, we work on WoRMS matching until there is nothing left to work on by using a while loop on the number of possible records to work on. I also threw in a safeguard total number to process and include that in the check so the loop doesn't run away on us.
+# Like all of the current thinking for the TIR, this code works through every registered taxa in the Taxa Information Registry and attempts to find and cache information from the World Register of Marine Species (WoRMS). It does this with a while loop to find something processable in the TIR with a safeguard on the number of records to process at a time that can be set for "thisRun".
 # 
-# This might be a little less efficient than grabbing up a whole batch of records at once that meet some criteria and then processing through all of those. It has to execute the following three API interactions:
+# I also recently changed the whole data model for the TIR to accommodate JSON data structures in the different "buckets" of information we are caching rather than the key/value pairs in hstore columns. This lets us run a much more simple process here where we simply package a little bit of additional information and the eliminate (pop) a couple of properties from the WoRMS service response that we don't need/want to store. That is all handled in the worms module of the bis package with the packageWoRMSJSON function.
 # 
-# 1) Get a single TIR registration that does not currently have any WoRMS data and has been processed by ITIS (so we have an alternative name to work against)
-# 2) Check the TIR registered name against the WoRMS REST service
-# 3) If we find a match, insert the WoRMS information into the TIR
-# 
-# However, that is only a single additional API interaction per record, and it allows us to simply kick off this process whenever and have it run until there's nothing left to do. It seems like that might be conducive to processing on the Kafka/microservices architecture.
+# The query that runs here does try to get an ITIS name from the TIR for the registered taxa, and if it exists, it will potentially use that name to query if it is different from the registered name. That way, we take advantage of having run an ITIS match previously. I made this independent of whether or not an ITIS match has been found, so we can opt to run the process again once ITIS processing is completed or updated over time.
 
 # In[1]:
 
@@ -29,7 +25,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 5000
+thisRun["totalRecordsToProcess"] = 1000
 thisRun["totalRecordsProcessed"] = 0
 thisRun["wormsNameService"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"
 thisRun["wormsIDService"] = "http://www.marinespecies.org/rest/AphiaRecordByAphiaID/"
@@ -39,7 +35,7 @@ numberWithoutTIRData = 1
 while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["totalRecordsToProcess"]:
     q_recordToSearch = "SELECT id,         registration->>'source' AS source,         registration->>'followTaxonomy' AS followtaxonomy,         registration->>'taxonomicLookupProperty' AS taxonomiclookupproperty,         registration->>'scientificname' AS scientificname,         itis->>'nameWInd' AS nameWInd,         itis->>'nameWOInd' AS nameWOInd         FROM tir.tir         WHERE worms IS NULL         LIMIT 1"
     recordToSearch  = requests.get(gc2.sqlAPI("DataDistillery","BCB")+"&q="+q_recordToSearch).json()
-    display (recordToSearch)
+    
     numberWithoutTIRData = len(recordToSearch["features"])
 
     if numberWithoutTIRData == 1:
@@ -62,7 +58,8 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
         # Set defaults for thisRecord
         thisRecord["matchMethod"] = "Not Matched"
         wormsData = 0
-        
+
+        # Handle cases where cleaning the Scientific Name resulted in a single blank value to search on
         if len(thisRecord["tryNames"]) == 1 and len(thisRecord["tryNames"][0]) == 0:
             thisRecord["matchString"] = tirRecord["properties"]["scientificname"]
             thisRecord["tryNames"] = []
@@ -90,7 +87,7 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
                 wormsData = wormsSearchResults.json()
                 thisRecord["matchString"] = validAphiaID
                 thisRecord["matchMethod"] = "Followed Accepted AphiaID"
-
+        
         thisRecord["wormsJSON"] = worms.packageWoRMSJSON(thisRecord["matchMethod"],thisRecord["matchString"],wormsData)
         display (thisRecord)
         if thisRun["commitToDB"]:
