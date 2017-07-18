@@ -7,7 +7,7 @@
 # 
 # The tessQuery function uses ITIS TSNs when available for a TIR record as the primary search mechanism and then will use available scientific names from the registration data or from ITIS or WoRMS in an attempt to find a possible match.
 
-# In[6]:
+# In[3]:
 
 import requests,json
 from IPython.display import display
@@ -16,7 +16,7 @@ from bis import tess
 from bis2 import gc2
 
 
-# In[11]:
+# In[4]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -24,7 +24,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 8000
+thisRun["totalRecordsToProcess"] = 50
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
