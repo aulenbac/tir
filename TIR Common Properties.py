@@ -9,7 +9,7 @@
 # * Match Method - the method that was successful in matching a scientific name to a taxonomic authority (helps tease out records that were not matched)
 # * Taxonomic Authority ID - a unique identifier (usually a URL/URI) for the record
 
-# In[1]:
+# In[2]:
 
 import requests,json
 from IPython.display import display
@@ -18,7 +18,7 @@ from bis import bis
 from bis import sgcn
 
 
-# In[3]:
+# In[6]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -26,7 +26,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 500
+thisRun["totalRecordsToProcess"] = 5000
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
@@ -57,6 +57,11 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
         tirCommon["matchmethod"] = None
         tirCommon["taxonomicgroup"] = None
 
+        tirCommon["scientificname"] = bis.stringCleaning(thisRecord["registration"]["scientificname"])
+        tirCommon["matchmethod"] = "Not Matched"
+        tirCommon["authorityid"] = "Not Matched to Taxonomic Authority"
+        tirCommon["rank"] = "Unknown Taxonomic Rank"
+
         if thisRecord["itis"]["MatchMethod"] != "Not Matched":
             tirCommon["scientificname"] = thisRecord["itis"]["nameWInd"]
             tirCommon["matchmethod"] = thisRecord["itis"]["MatchMethod"]
@@ -67,12 +72,7 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             tirCommon["matchmethod"] = thisRecord["worms"]["MatchMethod"]
             tirCommon["authorityid"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"+str(thisRecord["worms"]["AphiaID"])
             tirCommon["rank"] = thisRecord["worms"]["rank"]
-        else:
-            tirCommon["scientificname"] = bis.stringCleaning(thisRecord["registration"]["scientificname"])
-            tirCommon["matchmethod"] = "Not Matched"
-            tirCommon["authorityid"] = "Not Matched to Taxonomic Authority"
-            tirCommon["rank"] = "Unknown Taxonomic Rank"
-
+            
         if "commonnames" in list(thisRecord["itis"].keys()):
             for name in thisRecord["itis"]["commonnames"]:
                 if name["language"] == "English" or name["language"] == "unspecified":
@@ -87,6 +87,10 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
 
         if _source == "SGCN" and "sgcn" in list(thisRecord.keys()):
             tirCommon["taxonomicgroup"] = thisRecord["sgcn"]["taxonomicgroup"]
+            
+            if tirCommon["matchmethod"] == "Not Matched" and "swap2005" in list(thisRecord["sgcn"].keys()) == True:
+                tirCommon["matchmethod"] == "Legacy Match"
+                tirCommon["authorityid"] == "https://www.sciencebase.gov/catalog/file/get/56d720ece4b015c306f442d5?f=__disk__38%2F22%2F26%2F38222632f48bf0c893ad1017f6ba557d0f672432"
         else:
             tirCommon["taxonomicgroup"] = "unknown"
 

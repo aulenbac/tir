@@ -23,7 +23,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 200
+thisRun["totalRecordsToProcess"] = 2000
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
