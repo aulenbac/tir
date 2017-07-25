@@ -18,7 +18,7 @@ from bis import bis
 from bis import sgcn
 
 
-# In[6]:
+# In[17]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -88,9 +88,9 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
         if _source == "SGCN" and "sgcn" in list(thisRecord.keys()):
             tirCommon["taxonomicgroup"] = thisRecord["sgcn"]["taxonomicgroup"]
             
-            if tirCommon["matchmethod"] == "Not Matched" and "swap2005" in list(thisRecord["sgcn"].keys()) == True:
-                tirCommon["matchmethod"] == "Legacy Match"
-                tirCommon["authorityid"] == "https://www.sciencebase.gov/catalog/file/get/56d720ece4b015c306f442d5?f=__disk__38%2F22%2F26%2F38222632f48bf0c893ad1017f6ba557d0f672432"
+            if tirCommon["matchmethod"] == "Not Matched" and "swap2005" in list(thisRecord["sgcn"].keys()) and thisRecord["sgcn"]["swap2005"] is True:
+                tirCommon["matchmethod"] = "Legacy Match"
+                tirCommon["authorityid"] = "https://www.sciencebase.gov/catalog/file/get/56d720ece4b015c306f442d5?f=__disk__38%2F22%2F26%2F38222632f48bf0c893ad1017f6ba557d0f672432"
         else:
             tirCommon["taxonomicgroup"] = "unknown"
 

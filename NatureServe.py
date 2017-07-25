@@ -15,7 +15,7 @@ from bis2 import gc2
 from bis2 import natureserve as natureservekeys
 
 
-# In[2]:
+# In[9]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -23,14 +23,14 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 2000
+thisRun["totalRecordsToProcess"] = 200
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
 
 while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["totalRecordsToProcess"]:
 
-    q_recordToSearch = "SELECT id,         registration->>'scientificname' AS name_registered,         itis->>'nameWInd' AS name_itis,         worms->>'valid_name' AS name_worms         FROM tir.tir         WHERE natureserve IS NULL         LIMIT 1"
+    q_recordToSearch = "SELECT id, registration->>'scientificname' AS name_registered, itis->>'nameWInd' AS name_itis, worms->>'valid_name' AS name_worms FROM tir.tir WHERE natureserve IS NULL ORDER BY id ASC LIMIT 1"
     recordToSearch  = requests.get(thisRun["baseURL"]+"&q="+q_recordToSearch).json()
     
     numberWithoutTIRData = len(recordToSearch["features"])
@@ -62,7 +62,7 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
         # Display the record, cache results, and show query status
         display (thisRecord)
         if thisRun["commitToDB"]:
-            print (tir.cacheToTIR(thisRun["baseURL"],thisRecord["id"],"natureserve",json.dumps(thisRecord["natureServeData"])))
+            print (tir.cacheToTIR(thisRun["baseURL"],thisRecord["id"],"natureserve",json.dumps(thisRecord["natureServeData"]).replace(" ","")))
         thisRun["totalRecordsProcessed"] = thisRun["totalRecordsProcessed"] + 1
 
 
