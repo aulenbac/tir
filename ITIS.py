@@ -8,7 +8,7 @@
 # ### To Do
 # Next, I need to add in a different route for this code that retrieves information from ITIS when the registration info in the TIR contains an already identified ITIS TSN. This will be for GAP species and other cases and will include not following the taxonomic information to a valid TSN, but simply recording when that is the case.
 
-# In[7]:
+# In[2]:
 
 import requests,json
 from IPython.display import display
@@ -18,7 +18,7 @@ from bis import tir
 from bis2 import gc2
 
 
-# In[17]:
+# In[4]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -27,7 +27,7 @@ thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
 thisRun["fuzzyLevel"] = "~0.5"
-thisRun["totalRecordsToProcess"] = 5000
+thisRun["totalRecordsToProcess"] = 2000
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
@@ -107,6 +107,14 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             if len(itisDoc) > 0:
                 thisRecord["itisData"] = itis.packageITISJSON(thisRecord["matchMethod"],thisRecord["matchString"],itisDoc)
 
+        elif thisRecord["taxonomicLookupProperty"] == "tsn" and thisRecord["tsn"] is not None:
+            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["tsn"],False)
+            itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
+            thisRecord["matchMethod"] = "TSN Query"
+            thisRecord["matchString"] = thisRecord["tsn"]
+            itisDoc = itisSearchResults["response"]["docs"][0]
+            thisRecord["itisData"] = itis.packageITISJSON(thisRecord["matchMethod"],thisRecord["matchString"],itisDoc)
+            
         display (thisRecord)
         if thisRun["commitToDB"]:
             print (tir.cacheToTIR(thisRun["baseURL"],thisRecord["id"],"itis",json.dumps(thisRecord["itisData"])))
