@@ -17,7 +17,7 @@ from bis import tir
 from bis2 import gc2
 
 
-# In[3]:
+# In[8]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -25,7 +25,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 2000
+thisRun["totalRecordsToProcess"] = 700
 thisRun["totalRecordsProcessed"] = 0
 thisRun["wormsNameService"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"
 thisRun["wormsIDService"] = "http://www.marinespecies.org/rest/AphiaRecordByAphiaID/"

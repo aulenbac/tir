@@ -7,6 +7,7 @@
 
 import requests,json
 from IPython.display import display
+from datetime import datetime
 import pandas as pd
 from bis import tir
 from bis2 import gc2
@@ -31,7 +32,7 @@ for index, row in tgMappings.iterrows():
     tgDict[providedName] = preferredName
 
 
-# In[13]:
+# In[4]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -39,14 +40,14 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 2000
+thisRun["totalRecordsToProcess"] = 5000
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
 
 while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["totalRecordsToProcess"]:
 
-    q_recordToSearch = "SELECT id,         registration->>'scientificname' AS name_submitted,         itis->>'nameWInd' AS name_itis,         worms->>'valid_name' AS name_worms         FROM tir.tir         WHERE registration->>'source' = 'SGCN'         AND sgcn IS NULL         LIMIT 1"
+    q_recordToSearch = "SELECT id, registration->>'scientificname' AS name_submitted, itis->>'nameWInd' AS name_itis, worms->>'valid_name' AS name_worms FROM tir.tir WHERE registration->>'source' = 'SGCN' AND sgcn->>'dateCached' IS NULL LIMIT 1"
     recordToSearch  = requests.get(thisRun["baseURL"]+"&q="+q_recordToSearch).json()
 
     numberWithoutTIRData = len(recordToSearch["features"])
@@ -78,6 +79,9 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             if name in list(swap2005["scientificname"]):
                 thisRecord["annotation"]["swap2005"] = True
                 break
+                
+        thisRecord["annotation"]["stateLists"] = sgcn.getSGCNStatesByYear(thisRun["baseURL"],tirRecord["properties"]["name_submitted"])
+        thisRecord["annotation"]["dateCached"] = datetime.utcnow().isoformat()
         
         display (thisRecord)
         if thisRun["commitToDB"]:

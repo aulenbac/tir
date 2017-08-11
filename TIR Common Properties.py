@@ -8,6 +8,7 @@
 # * Taxonomic Group - a logical name for a group of taxa, not necessarily tied directly to official taxonomy
 # * Match Method - the method that was successful in matching a scientific name to a taxonomic authority (helps tease out records that were not matched)
 # * Taxonomic Authority ID - a unique identifier (usually a URL/URI) for the record
+# * Source - the source of the original registration (used especially as a filtering parameter to tease out only certain records)
 
 # In[1]:
 
@@ -19,7 +20,7 @@ from bis import bis
 from bis import sgcn
 
 
-# In[7]:
+# In[4]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -33,7 +34,7 @@ thisRun["totalRecordsProcessed"] = 0
 numberWithoutTIRData = 1
 
 while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["totalRecordsToProcess"]:
-    q_recordToSearch = "SELECT *         FROM tir.tir         WHERE scientificname IS NULL         AND itis IS NOT NULL         AND worms IS NOT NULL         LIMIT 1"
+    q_recordToSearch = "SELECT *         FROM tir.tir         WHERE itis IS NOT NULL         AND worms IS NOT NULL         AND (cachedate < (itis->>'cacheDate')::date         OR cachedate < (worms->>'cacheDate')::date         OR cachedate < (sgcn->>'cacheDate')::date)         LIMIT 1"
     recordToSearch = requests.get(thisRun["baseURL"]+"&q="+q_recordToSearch).json()
 
     numberWithoutTIRData = len(recordToSearch["features"])
@@ -51,15 +52,15 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
         _source = thisRecord["registration"]["source"]
 
         tirCommon = {}
-        tirCommon["scientificname"] = None
         tirCommon["commonname"] = None
         tirCommon["authorityid"] = None
         tirCommon["rank"] = None
         tirCommon["matchmethod"] = None
         tirCommon["taxonomicgroup"] = None
         tirCommon["cachedate"] = datetime.utcnow().isoformat()
-
+        
         tirCommon["scientificname"] = bis.stringCleaning(thisRecord["registration"]["scientificname"])
+        tirCommon["source"] = thisRecord["registration"]["source"]
         tirCommon["matchmethod"] = "Not Matched"
         tirCommon["authorityid"] = "Not Matched to Taxonomic Authority"
         tirCommon["rank"] = "Unknown Taxonomic Rank"
@@ -69,22 +70,20 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             tirCommon["matchmethod"] = thisRecord["itis"]["MatchMethod"]
             tirCommon["authorityid"] = "http://services.itis.gov/?q=tsn:"+str(thisRecord["itis"]["tsn"])
             tirCommon["rank"] = thisRecord["itis"]["rank"]
-            tirCommon["cachedate"] = thisRecord["itis"]["cacheDate"]
         elif thisRecord["worms"]["MatchMethod"] != "Not Matched":
             tirCommon["scientificname"] = thisRecord["worms"]["valid_name"]
             tirCommon["matchmethod"] = thisRecord["worms"]["MatchMethod"]
             tirCommon["authorityid"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"+str(thisRecord["worms"]["AphiaID"])
             tirCommon["rank"] = thisRecord["worms"]["rank"]
-            tirCommon["cachedate"] = thisRecord["worms"]["cacheDate"]
             
         if "commonnames" in list(thisRecord["itis"].keys()):
             for name in thisRecord["itis"]["commonnames"]:
                 if name["language"] == "English" or name["language"] == "unspecified":
-                    tirCommon["commonname"] = bis.stringCleaning(name["name"])
+                    tirCommon["commonname"] = name["name"]
                     break
         
         if tirCommon["commonname"] is None and _source == 'SGCN':
-            tirCommon["commonname"] = bis.stringCleaning(sgcn.getSGCNCommonName(thisRun["baseURL"],bis.stringCleaning(thisRecord["registration"]["scientificname"])))
+            tirCommon["commonname"] = sgcn.getSGCNCommonName(thisRun["baseURL"],bis.stringCleaning(thisRecord["registration"]["scientificname"]))
 
         if tirCommon["commonname"] is None:
             tirCommon["commonname"] = "no common name"
@@ -95,22 +94,19 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             if tirCommon["matchmethod"] == "Not Matched" and "swap2005" in list(thisRecord["sgcn"].keys()) and thisRecord["sgcn"]["swap2005"] is True:
                 tirCommon["matchmethod"] = "Legacy Match"
                 tirCommon["authorityid"] = "https://www.sciencebase.gov/catalog/file/get/56d720ece4b015c306f442d5?f=__disk__38%2F22%2F26%2F38222632f48bf0c893ad1017f6ba557d0f672432"
-
         elif _source == "GAP Species":
-            display (tirCommon)
             tirCommon["taxonomicgroup"] = thisRecord["registration"]["taxonomicgroup"]
             
             if tirCommon["scientificname"] != thisRecord["registration"]["scientificname"]:
                 tirCommon["scientificname"] = thisRecord["registration"]["scientificname"]
             if tirCommon["commonname"] != thisRecord["registration"]["commonname"]:
-                tirCommon["commonname"] = bis.stringCleaning(thisRecord["registration"]["commonname"])
-            
+                tirCommon["commonname"] = thisRecord["registration"]["commonname"]
         else:
-            tirCommon["taxonomicgroup"] = "unknown"
+            tirCommon["taxonomicgroup"] = "Other"
 
         display (tirCommon)
         if thisRun["commitToDB"]:
-            q_tirCommon = "UPDATE tir.tir SET                 scientificname='"+tirCommon["scientificname"]+"',                 commonname='"+tirCommon["commonname"]+"',                 authorityid='"+tirCommon["authorityid"]+"',                 rank='"+tirCommon["rank"]+"',                 taxonomicgroup='"+tirCommon["taxonomicgroup"]+"',                 matchmethod='"+tirCommon["matchmethod"]+"',                 cachedate='"+tirCommon["cachedate"]+"'                 WHERE id = "+str(thisRecord["id"])
+            q_tirCommon = "UPDATE tir.tir SET                 source='"+tirCommon["source"]+"',                 scientificname='"+tirCommon["scientificname"]+"',                 commonname='"+bis.stringCleaning(tirCommon["commonname"])+"',                 authorityid='"+tirCommon["authorityid"]+"',                 rank='"+tirCommon["rank"]+"',                 taxonomicgroup='"+tirCommon["taxonomicgroup"]+"',                 matchmethod='"+tirCommon["matchmethod"]+"',                 cachedate='"+tirCommon["cachedate"]+"'                 WHERE id = "+str(thisRecord["id"])
             print (requests.get(thisRun["baseURL"]+"&q="+q_tirCommon).json())
         thisRun["totalRecordsProcessed"] = thisRun["totalRecordsProcessed"] + 1
         
