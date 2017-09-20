@@ -20,7 +20,7 @@ from bis import bis
 from bis import sgcn
 
 
-# In[4]:
+# In[3]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -28,7 +28,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["totalRecordsToProcess"] = 5000
+thisRun["totalRecordsToProcess"] = 1000
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
@@ -76,15 +76,15 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             tirCommon["authorityid"] = "http://www.marinespecies.org/rest/AphiaRecordsByName/"+str(thisRecord["worms"]["AphiaID"])
             tirCommon["rank"] = thisRecord["worms"]["rank"]
             
-        if "commonnames" in list(thisRecord["itis"].keys()):
+        if tirCommon["commonname"] is None and _source == 'SGCN':
+            tirCommon["commonname"] = sgcn.getSGCNCommonName(thisRun["baseURL"],bis.stringCleaning(thisRecord["registration"]["scientificname"]))
+
+        if tirCommon["commonname"] is None and "commonnames" in list(thisRecord["itis"].keys()):
             for name in thisRecord["itis"]["commonnames"]:
                 if name["language"] == "English" or name["language"] == "unspecified":
                     tirCommon["commonname"] = name["name"]
                     break
         
-        if tirCommon["commonname"] is None and _source == 'SGCN':
-            tirCommon["commonname"] = sgcn.getSGCNCommonName(thisRun["baseURL"],bis.stringCleaning(thisRecord["registration"]["scientificname"]))
-
         if tirCommon["commonname"] is None:
             tirCommon["commonname"] = "no common name"
 

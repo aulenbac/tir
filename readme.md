@@ -1,10 +1,12 @@
-# Taxonomic Information Registry
+# Taxa Information Registry
 
-This repository contains code for an experimental component in the Biogeographic Information System, which handles the processing of discovered taxa of interest across our various systems, does some work to align them with taxonomic authorities, and retrieves other properties from relevant data systems into a cache for use throughout the BIS. We are trying to build this as an entirely code-driven system with occasional need for human intervention to tweak config parameters to make the processing better.
+This repository contains code for an experimental component in the Biogeographic Information System, which handles the processing of discovered taxa of interest across our various systems, does some work to link them with taxonomic authorities, and retrieves other properties from relevant data systems into a cache for use throughout the BIS. We are trying to build this as an entirely code-driven system with occasional need for human intervention to tweak config parameters to make the processing better.
 
-The codes here all interact with a still-experimental data platform we are working with as a component of the BIS. You'll see references to API calls that you can dig around in, but a separate config file is needed to set up API keys and other parameters for use. That file has to go along with the codes when running on a processing engine somewhere.
+The codes here all interact with still-experimental data platforms we are working with as a component of the BIS. You'll see references to API calls that you can dig around in, but a separate config file is needed to set up API keys and other parameters for use. That file has to go along with the codes when running on a processing engine somewhere.
 
 I started all of these with Jupyter Notebooks. If you see the same names as .py files, those were written with nbconvert to run outside the Jupyter environment. I'm working to make sure everything here will port over to the experimental microservices architecture we are developing where we will run this stuff live.
+
+Keep an eye on issues and projects in this GitHub repo for information about current activities.
 
 ## Scripts that are reasonably functional
 

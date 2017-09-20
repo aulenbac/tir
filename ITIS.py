@@ -18,7 +18,7 @@ from bis import tir
 from bis2 import gc2
 
 
-# In[2]:
+# In[3]:
 
 # Set up the actions/targets for this particular instance
 thisRun = {}
@@ -26,8 +26,7 @@ thisRun["instance"] = "DataDistillery"
 thisRun["db"] = "BCB"
 thisRun["baseURL"] = gc2.sqlAPI(thisRun["instance"],thisRun["db"])
 thisRun["commitToDB"] = True
-thisRun["fuzzyLevel"] = "~0.5"
-thisRun["totalRecordsToProcess"] = 1000
+thisRun["totalRecordsToProcess"] = 500
 thisRun["totalRecordsProcessed"] = 0
 
 numberWithoutTIRData = 1
@@ -63,7 +62,7 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
 
         if thisRecord["taxonomicLookupProperty"] == "scientificname" and len(thisRecord["scientificname_search"]) != 0:
 
-            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["scientificname_search"],False)
+            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["scientificname_search"],False,True)
 
             # Try an exact match search
             try:
@@ -82,7 +81,8 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
             # If we found nothing on an exact match search, try a fuzzy match
             elif thisRecord["numResults"] == 0:
                 try:
-                    itisSearchResults = requests.get(thisRecord["itisSearchURL"]+thisRun["fuzzyLevel"]).json()
+                    thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["scientificname_search"],True,True)
+                    itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
                     thisRecord["numResults"] = len(itisSearchResults["response"]["docs"])
                 except Exception as e:
                     print (e)
@@ -93,7 +93,7 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
 
             # If we got a result but the usage is not accepted/invalid and we should follow taxonomy for this record, then retrieve the record for the accepted TSN
             if len(itisDoc) > 0 and itisDoc["usage"] in ["not accepted","invalid"] and thisRecord["followTaxonomy"]:
-                thisRecord["itisSearchURL"] = itis.getITISSearchURL(itisDoc["acceptedTSN"][0],False)
+                thisRecord["itisSearchURL"] = itis.getITISSearchURL(itisDoc["acceptedTSN"][0],False,False)
                 try:
                     itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
                 except Exception as e:
@@ -108,7 +108,7 @@ while numberWithoutTIRData == 1 and thisRun["totalRecordsProcessed"] < thisRun["
                 thisRecord["itisData"] = itis.packageITISJSON(thisRecord["matchMethod"],thisRecord["matchString"],itisDoc)
 
         elif thisRecord["taxonomicLookupProperty"] == "tsn" and thisRecord["tsn"] is not None:
-            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["tsn"],False)
+            thisRecord["itisSearchURL"] = itis.getITISSearchURL(thisRecord["tsn"],False,False)
             itisSearchResults = requests.get(thisRecord["itisSearchURL"]).json()
             thisRecord["matchMethod"] = "TSN Query"
             thisRecord["matchString"] = thisRecord["tsn"]
